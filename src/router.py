@@ -1,9 +1,9 @@
 from typing import Dict, Literal, Optional
-from langchain_core.messages import AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from src.prompts.router import router_prompt
+from src.prompts.router import router_system_prompt, router_user_prompt
 from .utils import create_llm, StructuredRetryRunnable
 from .state import AgentState
 
@@ -22,17 +22,18 @@ async def router_node(state: AgentState, config: Optional[RunnableConfig] = None
     model_name = configurable.get("model", "qwen")
     llm = create_llm(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
     
-    query = state.get("user_query", "")
-    messages = router_prompt.format_messages(user_query=query)
+    query = state.get("user_query") or ""
+    state_messages = state.get("messages") or []
+    
+    if not state_messages:
+        all_messages = [
+            SystemMessage(content=router_system_prompt),
+            HumanMessage(content=router_user_prompt(query)),
+        ]
+    else:
+        all_messages = [SystemMessage(content=router_system_prompt)] + state_messages
     
     structured_chain = StructuredRetryRunnable(llm=llm, model_class=RouterDecision)
-    decision = await structured_chain.ainvoke(messages)
+    decision = await structured_chain.ainvoke(all_messages)
     
-    message = AIMessage(
-        content=f"Route decision: {decision.route}",
-        additional_kwargs={"route": decision.route}
-    )
-    
-    return {
-        "messages": [message],
-    }
+    return {"route": decision.route}

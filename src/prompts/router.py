@@ -1,11 +1,4 @@
-from langchain_core.prompts import ChatPromptTemplate
-
-
-router_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """You are an intelligent routing agent that classifies user queries to direct them to the appropriate specialized agent.
+router_system_prompt = """You are an intelligent routing agent that classifies user queries to direct them to the appropriate specialized agent.
 
 Your task is to analyze the user's query and determine whether it should be routed to:
 - DEV: For queries related to code, repositories, files, git history, implementation details, debugging, or software development
@@ -33,8 +26,8 @@ Routing Guidelines:
 
 Analyze the user query carefully and determine the most appropriate route based on the primary intent and content of the query.
 
-You must respond with valid JSON containing the routing decision.""",
-        ),
-        ("human", "{user_query}"),
-    ]
-)
+You must respond with valid JSON containing the routing decision."""
+
+
+def router_user_prompt(user_query: str) -> str:
+    return user_query

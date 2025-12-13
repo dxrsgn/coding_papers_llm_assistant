@@ -8,12 +8,7 @@ from .state import AgentState, ResearcherState, CoderState
 
 
 def route_from_router(state: AgentState) -> str:
-    messages = state.get("messages", [])
-    if not messages:
-        return "RESEARCH"
-    
-    last_message = messages[-1]
-    route = last_message.additional_kwargs.get("route", "").upper()
+    route = (state.get("route") or "").upper()
     if route == "DEV":
         return "DEV"
     return "RESEARCH"

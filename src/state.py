@@ -7,7 +7,7 @@ from langgraph.graph import add_messages
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     user_query: str
-    # shared context between agents (shared memory)
+    route: Optional[str]
     research_context: Optional[str]
     code_context: Optional[str]
     # NOTE: though assingment requirements suggest to store in main state
