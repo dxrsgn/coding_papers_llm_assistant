@@ -16,7 +16,7 @@ async def get_git_history(limit: int = 5) -> str:
         result = await loop.run_in_executor(
             None,
             lambda: subprocess.run(
-                ["git", "log", f"-n{limit}"],
+                ["git", "log", f"-n{limit}", "--name-status"],
                 check=True,
                 capture_output=True,
                 text=True,
@@ -48,6 +48,29 @@ async def search_arxiv(query: str) -> str:
     if not entries:
         return "No results found."
     return "\n\n".join(entries)
+
+
+@tool
+async def get_file_history(filepath: str, limit: int = 3) -> str:
+    """Get git commit history and diffs for a specific file."""
+    if limit <= 0:
+        limit = 3
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(
+                ["git", "log", f"-n{limit}", "-p", "--", filepath],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        )
+        return result.stdout.strip() or "No history found for this file."
+    except subprocess.CalledProcessError as exc:
+        return exc.stderr.strip() or "Unable to get file history"
+    except FileNotFoundError:
+        return "git is not available"
 
 
 @tool
