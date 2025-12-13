@@ -8,6 +8,8 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], add_messages]
     user_query: str
     route: Optional[str]
+    next_action: Optional[str]
+    current_task: Optional[str]
     research_context: Optional[str]
     code_context: Optional[str]
     # NOTE: though assingment requirements suggest to store in main state

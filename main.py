@@ -48,7 +48,7 @@ async def main() -> None:
             break
         existing_state = app.get_state(config=config)
         # merge existing state (shared memort context) with new input
-        messages = existing_state.values.get("messages", []) + [HumanMessage(content=user_input)]
+        messages = existing_state.values.get("messages", []) #+ [HumanMessage(content=user_input)]
         input_state =  {
             **existing_state.values,
             "messages": messages,
