@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Optional
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage, get_buffer_string
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
@@ -8,17 +8,17 @@ from langgraph.prebuilt import ToolNode
 
 from src.prompts.devlead import devlead_system_prompt, devlead_user_prompt
 from src.prompts.code_reader import code_reader_system_prompt, code_reader_user_prompt
-from .state import AgentState
-from .tools import get_git_history, read_file_content, call_code_reader
+from .state import CoderState
+from .tools import get_git_history, get_file_history, read_file_content, call_code_reader
 
 
-async def devlead_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
     model_name = configurable.get("model", "qwen")
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
-    model_with_tools = model.bind_tools([get_git_history, read_file_content, call_code_reader])
+    model_with_tools = model.bind_tools([get_git_history, get_file_history, read_file_content, call_code_reader])
     
     messages = state.get("messages", [])
     user_query = state.get("user_query") or ""
@@ -44,7 +44,7 @@ async def devlead_node(state: AgentState, config: Optional[RunnableConfig] = Non
     return result
 
 
-async def code_reader_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -52,6 +52,7 @@ async def code_reader_node(state: AgentState, config: Optional[RunnableConfig] =
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
     
     target = None
+    tool_call_id = None
     messages = state.get("messages", [])
     if messages:
         last_message = messages[-1]
@@ -60,6 +61,7 @@ async def code_reader_node(state: AgentState, config: Optional[RunnableConfig] =
                 if tool_call.get("name") == "call_code_reader":
                     args = tool_call.get("args", {})
                     target = args.get("filepath")
+                    tool_call_id = tool_call.get("id")
                     break
     
     if not target:
@@ -76,11 +78,11 @@ async def code_reader_node(state: AgentState, config: Optional[RunnableConfig] =
     
     response = await model.ainvoke(all_messages)
     return {
-        "messages": [AIMessage(content=response.content)],
+        "messages": [ToolMessage(content=response.content, tool_call_id=tool_call_id or "")],
     }
 
 
-async def summarize_code_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+async def summarize_code_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -100,7 +102,7 @@ async def summarize_code_node(state: AgentState, config: Optional[RunnableConfig
     return {"code_context": response.content}
 
 
-def should_continue_devlead(state: AgentState) -> str:
+def should_continue_devlead(state: CoderState) -> str:
     messages = state.get("messages", [])
     if not messages:
         return "devlead"
@@ -114,9 +116,9 @@ def should_continue_devlead(state: AgentState) -> str:
 
 
 def build_coding_agent_subgraph():
-    subgraph = StateGraph(AgentState)
+    subgraph = StateGraph(CoderState)
     subgraph.add_node("devlead", devlead_node)
-    subgraph.add_node("tools", ToolNode([get_git_history, call_code_reader]))
+    subgraph.add_node("tools", ToolNode([get_git_history, get_file_history, call_code_reader]))
     subgraph.add_node("code_reader", code_reader_node)
     subgraph.add_node("summarize", summarize_code_node)
     subgraph.set_entry_point("devlead")

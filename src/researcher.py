@@ -6,11 +6,11 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from src.prompts.researcher import researcher_system_prompt, researcher_user_prompt
-from .state import AgentState
+from .state import ResearcherState
 from .tools import search_arxiv
 
 
-def should_continue_research(state: AgentState) -> str:
+def should_continue_research(state: ResearcherState) -> str:
     messages = state.get("messages", [])
     if not messages:
         return "researcher"
@@ -20,7 +20,7 @@ def should_continue_research(state: AgentState) -> str:
     return "summarize"
 
 
-async def researcher_agent_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+async def researcher_agent_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> Dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -52,7 +52,7 @@ async def researcher_agent_node(state: AgentState, config: Optional[RunnableConf
     return result
 
 
-async def summarize_research_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+async def summarize_research_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> Dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -73,7 +73,7 @@ async def summarize_research_node(state: AgentState, config: Optional[RunnableCo
 
 
 def build_researcher_subgraph():
-    subgraph = StateGraph(AgentState)
+    subgraph = StateGraph(ResearcherState)
     subgraph.add_node("researcher", researcher_agent_node)
     subgraph.add_node("tools", ToolNode([search_arxiv]))
     subgraph.add_node("summarize", summarize_research_node)
