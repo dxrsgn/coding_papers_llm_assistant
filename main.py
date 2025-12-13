@@ -31,6 +31,7 @@ async def main() -> None:
     app = build_graph()
     config = RunnableConfig(
         configurable={
+            "thread_id": "main_thread",
             "llm_api_base": os.getenv("OPENAI_API_BASE"),
             "llm_api_key": os.getenv("OPENAI_API_KEY"),
             "model": os.getenv("MODEL"),
@@ -45,23 +46,21 @@ async def main() -> None:
             continue
         if user_input.lower() in {"exit", "quit"}:
             break
-        state: AgentState = {
+        existing_state = app.get_state(config=config)
+        # merge existing state (shared memort context) with new input
+        input_state =  {
+            **existing_state.values,
             "messages": [HumanMessage(content=user_input)],
             "user_query": user_input,
-            "research_context": None,
-            "active_agents": [],
         }
-        result = await app.ainvoke(state, config=config)
+        result = await app.ainvoke(AgentState(**input_state), config=config)
         messages = result.get("messages", [])
         final_response = ""
         for message in reversed(messages):
             if message.type == "ai":
                 final_response = message.content
                 break
-        agents = result.get("active_agents", [])
         print(final_response)
-        if agents:
-            print(f"Active Agents: {', '.join(agents)}")
     print("Goodbye.")
 
 

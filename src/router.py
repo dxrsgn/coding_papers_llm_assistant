@@ -35,6 +35,4 @@ async def router_node(state: AgentState, config: Optional[RunnableConfig] = None
     
     return {
         "messages": [message],
-        "active_agents": state.get("active_agents", []) + ["Router"],
     }
-

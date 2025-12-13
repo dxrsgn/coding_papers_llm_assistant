@@ -1,12 +1,5 @@
-from langchain_core.prompts import ChatPromptTemplate
+code_reader_system_prompt = "You are a code summarizer. You receive a file path. Use the provided file content to give a concise summary of what the code does."
 
 
-code_reader_prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            "You are a code summarizer. You receive a file path. Use the provided file content to give a concise summary of what the code does.",
-        ),
-        ("human", "Path: {filepath}\n\n{file_content}"),
-    ]
-)
+def code_reader_user_prompt(filepath: str, file_content: str) -> str:
+    return f"Path: {filepath}\n\n{file_content}"
