@@ -7,6 +7,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from src.prompts.devlead import devlead_system_prompt, devlead_user_prompt
+from src.utils import recall_file_summary, memorize_file_summary
 from src.prompts.code_reader import code_reader_system_prompt, code_reader_user_prompt
 from .state import CoderState
 from .tools import get_git_history, get_file_history, read_file_content, call_code_reader
@@ -71,12 +72,22 @@ async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] =
     
     content = await read_file_content.ainvoke({"filepath": target}) if target else "No file provided."
     
+    cached_summary = recall_file_summary(content) if target else None
+    if cached_summary:
+        return {
+            "messages": [ToolMessage(content=f"[From memory] {cached_summary}", tool_call_id=tool_call_id or "")],
+        }
+    
     all_messages = [
         SystemMessage(content=code_reader_system_prompt),
         HumanMessage(content=code_reader_user_prompt(target or "", content)),
     ]
     
     response = await model.ainvoke(all_messages)
+    
+    if target and isinstance(response.content, str):
+        memorize_file_summary(content, response.content)
+    
     return {
         "messages": [ToolMessage(content=response.content, tool_call_id=tool_call_id or "")],
     }
