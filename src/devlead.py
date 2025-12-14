@@ -10,7 +10,7 @@ from src.prompts.devlead import devlead_system_prompt, devlead_user_prompt
 from src.utils import recall_file_summary, memorize_file_summary
 from src.prompts.code_reader import code_reader_system_prompt, code_reader_user_prompt
 from .state import CoderState
-from .tools import get_git_history, get_file_history, read_file_content, call_code_reader
+from .tools import get_git_history, get_file_history, read_file_content, call_code_reader, list_directory
 
 
 async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
@@ -19,7 +19,7 @@ async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = Non
     api_key = configurable.get("llm_api_key")
     model_name = configurable.get("model", "qwen")
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
-    model_with_tools = model.bind_tools([get_git_history, get_file_history, read_file_content, call_code_reader])
+    model_with_tools = model.bind_tools([get_git_history, get_file_history, call_code_reader, list_directory])
     
     messages = state.get("messages", [])
     user_query = state.get("user_query") or ""
@@ -129,7 +129,7 @@ def should_continue_devlead(state: CoderState) -> str:
 def build_coding_agent_subgraph():
     subgraph = StateGraph(CoderState)
     subgraph.add_node("devlead", devlead_node)
-    subgraph.add_node("tools", ToolNode([get_git_history, get_file_history, call_code_reader]))
+    subgraph.add_node("tools", ToolNode([get_git_history, get_file_history, call_code_reader, list_directory]))
     subgraph.add_node("code_reader", code_reader_node)
     subgraph.add_node("summarize", summarize_code_node)
     subgraph.set_entry_point("devlead")

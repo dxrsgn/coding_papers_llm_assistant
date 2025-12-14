@@ -98,3 +98,33 @@ async def call_code_reader(filepath: str) -> str:
     """Call the code reader node to read the file content."""
     return "devlead_node must call code_reader_node"
 
+
+@tool
+async def list_directory(directory: str = ".") -> str:
+    """List the structure of the current directory or specified directory."""
+    root = Path.cwd().resolve()
+    path = Path(directory).expanduser().resolve()
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return "Access denied."
+    if not path.exists():
+        return "Directory not found."
+    if not path.is_dir():
+        return "Target is not a directory."
+    try:
+        loop = asyncio.get_event_loop()
+        def get_structure():
+            items = []
+            for item in sorted(path.iterdir()):
+                if item.is_dir():
+                    items.append(f"{item.name}/")
+                else:
+                    items.append(item.name)
+            return "\n".join(items) if items else "Directory is empty."
+        return await loop.run_in_executor(None, get_structure)
+    except PermissionError:
+        return "Permission denied."
+    except Exception as exc:
+        return f"Error listing directory: {str(exc)}"
+
