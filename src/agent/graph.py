@@ -1,6 +1,5 @@
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import AIMessage
 
 from .devlead import build_coding_agent_subgraph
@@ -16,12 +15,15 @@ def route_from_supervisor(state: AgentState) -> str:
     if num_iterations >= 5:
         return END
     last_message = state.get("messages", [])[-1]
+    print(last_message)
+    print(last_message.additional_kwargs.keys())
+    print(last_message.__dict__)
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "supervisor_routing"
     return END
 
 
-def build_graph():
+def build_graph(checkpointer=None):
     graph = StateGraph(AgentState)
 
     researcher_subgraph = build_researcher_subgraph()
@@ -40,5 +42,5 @@ def build_graph():
     graph.add_conditional_edges("Supervisor", route_from_supervisor)
     graph.add_edge("supervisor_routing", "Supervisor")
     graph.add_edge("prepare_user_input", "Supervisor")
-    checkpointer = MemorySaver()
+    
     return graph.compile(checkpointer=checkpointer)

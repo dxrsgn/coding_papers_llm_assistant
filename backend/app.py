@@ -1,9 +1,11 @@
 from dotenv import load_dotenv
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import MemorySaver
 
 from src.agent.graph import build_graph
 from src.agent.state import AgentState
@@ -22,8 +24,39 @@ LangChainInstrumentor().instrument(tracer_provider=tracer_provider)
 HTTPXClientInstrumentor().instrument()
 tracer = tracer_provider.get_tracer("aboba")
 
-app = FastAPI()
-graph = build_graph()
+checkpointer = None
+graph = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global checkpointer, graph
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        try:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from src.database import init_db
+            db_url_for_checkpoint = database_url.replace("postgresql+psycopg://", "postgresql://")
+            async with AsyncPostgresSaver.from_conn_string(db_url_for_checkpoint) as checkpointer:
+                await checkpointer.setup()
+                await init_db()
+                print("RUNNING DB")
+                graph = build_graph(checkpointer=checkpointer)
+                yield
+        except Exception as e:
+            print("NOT RUNNING DB")
+            print(e)
+            checkpointer = MemorySaver()
+            graph = build_graph(checkpointer=checkpointer)
+            yield
+    else:
+        print("NOT RUNNING DB (no url)")
+        checkpointer = MemorySaver()
+        graph = build_graph(checkpointer=checkpointer)
+        yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class MessageRequest(BaseModel):
@@ -37,17 +70,21 @@ class MessageResponse(BaseModel):
 
 @app.post("/chat", response_model=MessageResponse)
 async def chat(request: MessageRequest):
+    if graph is None:
+        raise HTTPException(status_code=503, detail="Graph not initialized")
     try:
+        use_db = bool(os.getenv("DATABASE_URL"))
         config = RunnableConfig(
             configurable={
                 "thread_id": request.thread_id,
                 "llm_api_base": os.getenv("OPENAI_API_BASE"),
                 "llm_api_key": os.getenv("OPENAI_API_KEY"),
                 "model": os.getenv("MODEL"),
+                "use_db": use_db,
             }
         )
         
-        existing_state = graph.get_state(config=config)
+        existing_state = await graph.aget_state(config=config)
         messages = existing_state.values.get("messages", [])
         input_state = {
             **existing_state.values,

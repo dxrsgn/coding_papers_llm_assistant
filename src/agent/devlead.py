@@ -68,6 +68,7 @@ async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] =
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
     model_name = configurable.get("model", "qwen")
+    use_db = configurable.get("use_db")
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
     
     target = None
@@ -90,7 +91,9 @@ async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] =
     
     content = await read_file_content.ainvoke({"filepath": target}) if target else "No file provided."
     
-    cached_summary = recall_file_summary(content) if target else None
+    cached_summary = None
+    if target:
+        cached_summary = await recall_file_summary(content, use_db=use_db)
     if cached_summary:
         return {
             "messages": [ToolMessage(content=f"[From memory] {cached_summary}", tool_call_id=tool_call_id or "")],
@@ -104,7 +107,7 @@ async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] =
     response = await model.ainvoke(all_messages)
     
     if target and isinstance(response.content, str):
-        memorize_file_summary(content, response.content)
+        await memorize_file_summary(content, response.content, use_db=use_db)
     
     return {
         "messages": [ToolMessage(content=response.content, tool_call_id=tool_call_id or "")],

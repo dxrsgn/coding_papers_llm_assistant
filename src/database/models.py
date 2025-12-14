@@ -7,40 +7,43 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    create_engine,
 )
-from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import (
     Mapped,
-    Session,
     declarative_base,
     mapped_column,
-    sessionmaker,
 )
 
 Base = declarative_base()
 
-_engine: Optional[Engine] = None
-_SessionLocal: Optional[sessionmaker] = None
+_async_engine = None
+_AsyncSessionLocal: Optional[async_sessionmaker] = None
 
 
-def get_engine() -> Engine:
-    global _engine
-    if _engine is None:
+def get_async_engine():
+    global _async_engine
+    if _async_engine is None:
         database_url = os.getenv("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/postgres")
-        _engine = create_engine(database_url, future=True)
-    return _engine
+        if database_url.startswith("postgresql+psycopg://"):
+            async_url = database_url
+        elif database_url.startswith("postgresql://"):
+            async_url = database_url.replace("postgresql://", "postgresql+psycopg://")
+        else:
+            async_url = database_url
+        _async_engine = create_async_engine(async_url, echo=False)
+    return _async_engine
 
 
-def get_sessionmaker() -> sessionmaker:
-    global _SessionLocal
-    if _SessionLocal is None:
-        _SessionLocal = sessionmaker(bind=get_engine(), autoflush=False, autocommit=False, future=True)
-    return _SessionLocal
+def get_async_sessionmaker() -> async_sessionmaker:
+    global _AsyncSessionLocal
+    if _AsyncSessionLocal is None:
+        _AsyncSessionLocal = async_sessionmaker(bind=get_async_engine(), class_=AsyncSession, expire_on_commit=False)
+    return _AsyncSessionLocal
 
 
-def get_session() -> Session:
-    return get_sessionmaker()()
+def get_async_session() -> AsyncSession:
+    return get_async_sessionmaker()()
 
 
 class FileSummary(Base):
@@ -52,4 +55,10 @@ class FileSummary(Base):
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+async def init_db():
+    async_engine = get_async_engine()
+    async with async_engine.begin() as conn:
+        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(bind=sync_conn))
 

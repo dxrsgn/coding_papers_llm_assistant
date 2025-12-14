@@ -3,6 +3,7 @@ import os
 import asyncio
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import MemorySaver
 
 from src.agent.graph import build_graph
 from src.agent.state import AgentState
@@ -27,16 +28,7 @@ async def async_input(prompt: str) -> str:
     return await loop.run_in_executor(None, input, prompt)
 
 
-async def main() -> None:
-    app = build_graph()
-    config = RunnableConfig(
-        configurable={
-            "thread_id": "main_thread",
-            "llm_api_base": os.getenv("OPENAI_API_BASE"),
-            "llm_api_key": os.getenv("OPENAI_API_KEY"),
-            "model": os.getenv("MODEL"),
-        }
-    )
+async def run_chat_loop(app, config):
     while True:
         try:
             user_input = (await async_input("User: ")).strip()
@@ -46,10 +38,9 @@ async def main() -> None:
             continue
         if user_input.lower() in {"exit", "quit"}:
             break
-        existing_state = app.get_state(config=config)
-        # merge existing state (shared memort context) with new input
+        existing_state = await app.aget_state(config=config)
         messages = existing_state.values.get("messages", [])
-        input_state =  {
+        input_state = {
             **existing_state.values,
             "messages": messages,
             "user_query": user_input,
@@ -73,6 +64,42 @@ async def main() -> None:
             final_response = str(last_message.content)
 
         print(final_response)
+
+
+async def main() -> None:
+    database_url = os.getenv("DATABASE_URL")
+    config = RunnableConfig(
+        configurable={
+            "thread_id": "main_thread",
+            "llm_api_base": os.getenv("OPENAI_API_BASE"),
+            "llm_api_key": os.getenv("OPENAI_API_KEY"),
+            "model": os.getenv("MODEL"),
+        }
+    )
+    
+    if database_url:
+        try:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from src.database import init_db
+            db_url_for_checkpoint = database_url.replace("postgresql+psycopg://", "postgresql://")
+            async with AsyncPostgresSaver.from_conn_string(db_url_for_checkpoint) as checkpointer:
+                await checkpointer.setup()
+                await init_db()
+                print("RUNNING DB")
+                app = build_graph(checkpointer=checkpointer)
+                await run_chat_loop(app, config)
+        except Exception as e:
+            print("NOT RUNNING DB")
+            print(e)
+            checkpointer = MemorySaver()
+            app = build_graph(checkpointer=checkpointer)
+            await run_chat_loop(app, config)
+    else:
+        print("NOT RUNNING DB (no url)")
+        checkpointer = MemorySaver()
+        app = build_graph(checkpointer=checkpointer)
+        await run_chat_loop(app, config)
+    
     print("Goodbye.")
 
 

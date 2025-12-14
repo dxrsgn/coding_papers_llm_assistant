@@ -1,20 +1,23 @@
 import hashlib
 from typing import Optional, List, Dict
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import get_session, FileSummary
+from .models import get_async_session, FileSummary
 
 
 def get_content_hash(content: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()
 
 
-def fetch_summary(content: str, filepath: Optional[str] = None) -> Optional[str]:
+async def fetch_summary(content: str, filepath: Optional[str] = None) -> Optional[str]:
     content_hash = get_content_hash(content)
     
-    with get_session() as session:
-        file_summary = session.query(FileSummary).filter(
-            FileSummary.content_hash == content_hash
-        ).first()
+    async with get_async_session() as session:
+        result = await session.execute(
+            select(FileSummary).filter(FileSummary.content_hash == content_hash)
+        )
+        file_summary = result.scalar_one_or_none()
         
         if file_summary:
             return file_summary.summary
@@ -22,13 +25,14 @@ def fetch_summary(content: str, filepath: Optional[str] = None) -> Optional[str]
     return None
 
 
-def upload_summary(content: str, summary: str, filepath: Optional[str] = None) -> None:
+async def upload_summary(content: str, summary: str, filepath: Optional[str] = None) -> None:
     content_hash = get_content_hash(content)
     
-    with get_session() as session:
-        existing_summary = session.query(FileSummary).filter(
-            FileSummary.content_hash == content_hash
-        ).first()
+    async with get_async_session() as session:
+        result = await session.execute(
+            select(FileSummary).filter(FileSummary.content_hash == content_hash)
+        )
+        existing_summary = result.scalar_one_or_none()
         
         if existing_summary:
             existing_summary.summary = summary
@@ -42,14 +46,17 @@ def upload_summary(content: str, summary: str, filepath: Optional[str] = None) -
             )
             session.add(new_summary)
         
-        session.commit()
+        await session.commit()
 
 
-def fetch_summary_by_filepath(filepath: str) -> Optional[str]:
-    with get_session() as session:
-        file_summary = session.query(FileSummary).filter(
-            FileSummary.filepath == filepath
-        ).order_by(FileSummary.updated_at.desc()).first()
+async def fetch_summary_by_filepath(filepath: str) -> Optional[str]:
+    async with get_async_session() as session:
+        result = await session.execute(
+            select(FileSummary)
+            .filter(FileSummary.filepath == filepath)
+            .order_by(FileSummary.updated_at.desc())
+        )
+        file_summary = result.scalar_one_or_none()
         
         if file_summary:
             return file_summary.summary
@@ -57,14 +64,15 @@ def fetch_summary_by_filepath(filepath: str) -> Optional[str]:
     return None
 
 
-def list_all_summaries(limit: Optional[int] = None) -> List[Dict]:
-    with get_session() as session:
-        query = session.query(FileSummary).order_by(FileSummary.updated_at.desc())
+async def list_all_summaries(limit: Optional[int] = None) -> List[Dict]:
+    async with get_async_session() as session:
+        query = select(FileSummary).order_by(FileSummary.updated_at.desc())
         
         if limit:
             query = query.limit(limit)
         
-        summaries = query.all()
+        result = await session.execute(query)
+        summaries = result.scalars().all()
         
         return [
             {
