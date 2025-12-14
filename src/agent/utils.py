@@ -6,6 +6,7 @@ from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import Runnable
 from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -15,6 +16,35 @@ def create_llm(reasoning=False, **kwargs):
     else:
         conf = {"reasoning": {"enabled": False, "effort": "low"}}
     return ChatOpenAI(**kwargs | conf)
+
+def normalize_message_content(msg: BaseMessage) -> BaseMessage:
+    if isinstance(msg.content, list):
+        text_parts = []
+        for part in msg.content:
+            if isinstance(part, str):
+                text_parts.append(part)
+            elif isinstance(part, dict):
+                if part.get("type") == "text":
+                    text_parts.append(part.get("text", ""))
+                elif "text" in part:
+                    text_parts.append(part["text"])
+        normalized_content = "".join(text_parts) if text_parts else str(msg.content)
+    else:
+        normalized_content = str(msg.content) if msg.content else ""
+    
+    # some providers concat in text both reasoning and response
+    response_match = re.search(r'<response>(.*?)</response>', normalized_content, re.DOTALL)
+    if response_match:
+        normalized_content = response_match.group(1).strip()
+    
+    if isinstance(msg, AIMessage):
+        return AIMessage(content=normalized_content, tool_calls=msg.tool_calls if hasattr(msg, 'tool_calls') else None)
+    elif isinstance(msg, HumanMessage):
+        return HumanMessage(content=normalized_content)
+    elif isinstance(msg, SystemMessage):
+        return SystemMessage(content=normalized_content)
+    else:
+        return msg
 
 def clean_response(text: str) -> str:
     text = text.strip()

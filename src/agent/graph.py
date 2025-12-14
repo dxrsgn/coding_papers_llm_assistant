@@ -5,14 +5,15 @@ from langchain_core.messages import AIMessage
 
 from .devlead import build_coding_agent_subgraph
 from .researcher import build_researcher_subgraph
-from .supervisor import build_supervisor
+from .supervisor import build_supervisor, prepare_user_input
 from .subagent_wrappers import build_subagent_wrappers
 from .state import AgentState
 
 
 def route_from_supervisor(state: AgentState) -> str:
     num_iterations = state.get("num_iterations", 0)
-    if num_iterations >= 3:
+    # TODO: move to envs
+    if num_iterations >= 5:
         return END
     last_message = state.get("messages", [])[-1]
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
@@ -32,10 +33,12 @@ def build_graph():
     supervisor_tools = build_subagent_wrappers(researcher_subgraph, coding_subgraph)
     supervisor = build_supervisor(supervisor_tools)
 
+    graph.add_node("prepare_user_input", prepare_user_input)
     graph.add_node("Supervisor", supervisor)
     graph.add_node("supervisor_routing", ToolNode(supervisor_tools))
-    graph.set_entry_point("Supervisor")
+    graph.set_entry_point("prepare_user_input")
     graph.add_conditional_edges("Supervisor", route_from_supervisor)
     graph.add_edge("supervisor_routing", "Supervisor")
+    graph.add_edge("prepare_user_input", "Supervisor")
     checkpointer = MemorySaver()
     return graph.compile(checkpointer=checkpointer)

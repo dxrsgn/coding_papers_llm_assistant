@@ -4,8 +4,8 @@ import asyncio
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from src.graph import build_graph
-from src.state import AgentState
+from src.agent.graph import build_graph
+from src.agent.state import AgentState
 
 from phoenix.otel import register
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
