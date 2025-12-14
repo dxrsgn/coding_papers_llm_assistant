@@ -1,18 +1,21 @@
-from dotenv import load_dotenv
-import os
 from contextlib import asynccontextmanager
+import os
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from phoenix.otel import register
 
 from src.agent.graph import build_graph
 from src.agent.state import AgentState
+from src.database import init_db
 
-from phoenix.otel import register
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from openinference.instrumentation.langchain import LangChainInstrumentor
+from .models import MessageRequest, MessageResponse
 
 load_dotenv()
 
@@ -34,38 +37,23 @@ async def lifespan(app: FastAPI):
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         try:
-            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-            from src.database import init_db
             db_url_for_checkpoint = database_url.replace("postgresql+psycopg://", "postgresql://")
             async with AsyncPostgresSaver.from_conn_string(db_url_for_checkpoint) as checkpointer:
                 await checkpointer.setup()
                 await init_db()
-                print("RUNNING DB")
                 graph = build_graph(checkpointer=checkpointer)
                 yield
-        except Exception as e:
-            print("NOT RUNNING DB")
-            print(e)
+        except Exception as _:
             checkpointer = MemorySaver()
             graph = build_graph(checkpointer=checkpointer)
             yield
     else:
-        print("NOT RUNNING DB (no url)")
         checkpointer = MemorySaver()
         graph = build_graph(checkpointer=checkpointer)
         yield
 
 
 app = FastAPI(lifespan=lifespan)
-
-
-class MessageRequest(BaseModel):
-    message: str
-    thread_id: str = "default_thread"
-
-
-class MessageResponse(BaseModel):
-    response: str
 
 
 @app.post("/chat", response_model=MessageResponse)

@@ -1,16 +1,18 @@
-from dotenv import load_dotenv
-import os
 import asyncio
+import os
+
+from dotenv import load_dotenv
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from openinference.instrumentation.langchain import LangChainInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from phoenix.otel import register
 
 from src.agent.graph import build_graph
 from src.agent.state import AgentState
-
-from phoenix.otel import register
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from openinference.instrumentation.langchain import LangChainInstrumentor
+from src.database import init_db
 
 load_dotenv()
 
@@ -23,6 +25,9 @@ HTTPXClientInstrumentor().instrument()
 tracer = tracer_provider.get_tracer("aboba")
 
 
+# async cli app is not really needed
+# but i made in that way for compatability with fastapi app
+# and postgre db
 async def async_input(prompt: str) -> str:
     loop = asyncio.get_event_loop()
     return await loop.run_in_executor(None, input, prompt)
@@ -79,23 +84,17 @@ async def main() -> None:
     
     if database_url:
         try:
-            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-            from src.database import init_db
             db_url_for_checkpoint = database_url.replace("postgresql+psycopg://", "postgresql://")
             async with AsyncPostgresSaver.from_conn_string(db_url_for_checkpoint) as checkpointer:
                 await checkpointer.setup()
                 await init_db()
-                print("RUNNING DB")
                 app = build_graph(checkpointer=checkpointer)
                 await run_chat_loop(app, config)
         except Exception as e:
-            print("NOT RUNNING DB")
-            print(e)
             checkpointer = MemorySaver()
             app = build_graph(checkpointer=checkpointer)
             await run_chat_loop(app, config)
     else:
-        print("NOT RUNNING DB (no url)")
         checkpointer = MemorySaver()
         app = build_graph(checkpointer=checkpointer)
         await run_chat_loop(app, config)
