@@ -15,7 +15,7 @@ def create_llm(reasoning=False, **kwargs):
         conf = {"reasoning": {"enabled": True, "effort": "high"}}
     else:
         conf = {"reasoning": {"enabled": False, "effort": "low"}}
-    return ChatOpenAI(**kwargs | conf)
+    return ChatOpenAI(**kwargs | conf, max_retries=3)
 
 def normalize_message_content(msg: BaseMessage) -> BaseMessage:
     if isinstance(msg.content, list):

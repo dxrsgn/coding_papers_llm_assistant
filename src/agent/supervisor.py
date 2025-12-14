@@ -27,7 +27,7 @@ async def supervisor_node(state: AgentState, subagents: List[BaseTool], config: 
     api_key = configurable.get("llm_api_key", None)
     model_name = configurable.get("model", "qwen")
     llm = create_llm(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
-    llm = llm.bind_tools(subagents)
+    llm = llm.bind_tools(subagents, strict=True)
     
     state_messages = state.get("messages") or []
     

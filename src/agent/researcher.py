@@ -26,7 +26,10 @@ async def researcher_agent_node(state: ResearcherState, config: Optional[Runnabl
     api_key = configurable.get("llm_api_key")
     model_name = configurable.get("model", "qwen")
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
-    model_with_tools = model.bind_tools([search_arxiv])
+    model_with_tools = model.bind_tools(
+        [search_arxiv],
+        strict=True
+    )
     
     messages = state.get("messages", [])
     user_query = state.get("user_query") or ""

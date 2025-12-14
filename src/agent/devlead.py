@@ -34,7 +34,10 @@ async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = Non
     api_key = configurable.get("llm_api_key")
     model_name = configurable.get("model", "qwen")
     model = ChatOpenAI(model=model_name, temperature=0, base_url=api_base, api_key=api_key)
-    model_with_tools = model.bind_tools([get_git_history, get_file_history, call_code_reader, list_directory])
+    model_with_tools = model.bind_tools(
+        [get_git_history, get_file_history, call_code_reader, list_directory],
+        strict=True
+    )
     
     messages = state.get("messages", [])
     user_query = state.get("user_query") or ""
@@ -133,6 +136,7 @@ def should_continue_devlead(state: CoderState) -> str:
     if not messages:
         return "devlead"
     last_message = messages[-1]
+    print(f"CODER: {last_message}")
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         for tool_call in last_message.tool_calls:
             if tool_call.get("name") == "call_code_reader":
