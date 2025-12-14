@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 import asyncio
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from src.graph import build_graph
@@ -48,7 +48,7 @@ async def main() -> None:
             break
         existing_state = app.get_state(config=config)
         # merge existing state (shared memort context) with new input
-        messages = existing_state.values.get("messages", []) #+ [HumanMessage(content=user_input)]
+        messages = existing_state.values.get("messages", [])
         input_state =  {
             **existing_state.values,
             "messages": messages,
@@ -56,11 +56,22 @@ async def main() -> None:
         }
         result = await app.ainvoke(AgentState(**input_state), config=config)
         messages = result.get("messages", [])
-        final_response = ""
-        for message in reversed(messages):
-            if message.type == "ai":
-                final_response = message.content
-                break
+        last_message = messages[-1]
+        if not isinstance(last_message, AIMessage):
+            raise ValueError("Last message is not an AIMessage")
+
+        if isinstance(last_message.content, list):
+            final_response = ""
+            for part in last_message.content:
+                if isinstance(part, str):
+                    final_response += part
+                elif isinstance(part, dict) and "text" in part:
+                    final_response += part["text"]
+        elif isinstance(last_message.content, str):
+            final_response = last_message.content
+        else:
+            final_response = str(last_message.content)
+
         print(final_response)
     print("Goodbye.")
 

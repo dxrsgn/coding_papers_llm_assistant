@@ -1,20 +1,23 @@
 from langgraph.graph import END, StateGraph
+from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import AIMessage
 
 from .devlead import build_coding_agent_subgraph
 from .researcher import build_researcher_subgraph
-from .supervisor import supervisor_node
-from .state import AgentState, ResearcherState, CoderState
+from .supervisor import build_supervisor
+from .supervisor_tools import build_supervisor_tools
+from .state import AgentState
 
 
 def route_from_supervisor(state: AgentState) -> str:
-    next_action = (state.get("next_action") or "").upper()
-    if next_action == "FINISH":
-        return "END"
-    route = (state.get("route") or "").upper()
-    if route == "DEV":
-        return "DEV"
-    return "RESEARCH"
+    num_iterations = state.get("num_iterations", 0)
+    if num_iterations >= 3:
+        return END
+    last_message = state.get("messages", [])[-1]
+    if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        return "supervisor_routing"
+    return END
 
 
 def build_graph():
@@ -23,38 +26,16 @@ def build_graph():
     researcher_subgraph = build_researcher_subgraph()
     coding_subgraph = build_coding_agent_subgraph()
 
-    async def call_researcher(state: AgentState) -> dict:
-        input_state = {
-            "user_query": state.get("current_task") or state.get("user_query", ""),
-            "research_context": state.get("research_context", ""),
-            "code_context": state.get("code_context", ""),
-        }
-        result = await researcher_subgraph.ainvoke(ResearcherState(**input_state))
-        return {"messages": result.get("messages", [])[-1], "research_context": result.get("research_context", "")}
+    # we dont use there conditional edges to route subagents, instead
+    # to propose layered structure we make them as tools for supervisor to call
+    # this complies with official langgraph doc https://docs.langchain.com/oss/python/langchain/supervisor#3-wrap-sub-agents-as-tools
+    supervisor_tools = build_supervisor_tools(researcher_subgraph, coding_subgraph)
+    supervisor = build_supervisor(supervisor_tools)
 
-    async def call_coder(state: AgentState) -> dict:
-        input_state = {
-            "user_query": state.get("current_task") or state.get("user_query", ""),
-            "research_context": state.get("research_context", ""),
-            "code_context": state.get("code_context", ""),
-        }
-        result = await coding_subgraph.ainvoke(CoderState(**input_state))
-        return {"messages": result.get("messages", [])[-1], "code_context": result.get("code_context", "")}
-
-    graph.add_node("Supervisor", supervisor_node)
-    graph.add_node("Researcher", call_researcher)
-    graph.add_node("DevLead", call_coder)
+    graph.add_node("Supervisor", supervisor)
+    graph.add_node("supervisor_routing", ToolNode(supervisor_tools))
     graph.set_entry_point("Supervisor")
-    graph.add_conditional_edges(
-        "Supervisor",
-        route_from_supervisor,
-        {
-            "DEV": "DevLead",
-            "RESEARCH": "Researcher",
-            "END": END,
-        },
-    )
-    graph.add_edge("Researcher", "Supervisor")
-    graph.add_edge("DevLead", "Supervisor")
+    graph.add_conditional_edges("Supervisor", route_from_supervisor)
+    graph.add_edge("supervisor_routing", "Supervisor")
     checkpointer = MemorySaver()
     return graph.compile(checkpointer=checkpointer)
