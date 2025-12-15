@@ -4,6 +4,7 @@ import json
 from typing import TypeVar, Type, Any, Generic, Optional
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
+from langchain_litellm import ChatLiteLLM
 from langchain_core.runnables import Runnable
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
@@ -11,10 +12,15 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Base
 T = TypeVar('T', bound=BaseModel)
 
 def create_llm(reasoning=False, **kwargs):
-    if reasoning:
-        conf = {"reasoning": {"enabled": True, "effort": "high"}}
-    else:
-        conf = {"reasoning": {"enabled": False, "effort": "low"}}
+    # TODO: find reasoning switch for vllm's qwen
+    # apparently passing "reasoning" kwarg into chatopena ai makes
+    # client format responses from llm into openai's responses api
+    # which is incompatible with itmo's vllm instance
+    #if reasoning:
+    #    conf = {"reasoning": {"enabled": True, "effort": "high"}}
+    #else:
+    #    conf = {"reasoning": {"enabled": False, "effort": "low"}}
+    conf = {}
     return ChatOpenAI(**kwargs | conf, max_retries=3)
 
 def normalize_message_content(msg: BaseMessage) -> BaseMessage:
@@ -38,7 +44,9 @@ def normalize_message_content(msg: BaseMessage) -> BaseMessage:
         normalized_content = response_match.group(1).strip()
     
     if isinstance(msg, AIMessage):
-        return AIMessage(content=normalized_content, tool_calls=msg.tool_calls if hasattr(msg, 'tool_calls') else None)
+        #if hasattr(msg, "tool_calls"):
+        #    return AIMessage(content=None, tool_calls=msg.tool_calls if hasattr(msg, 'tool_calls') else None)
+        return AIMessage(content_blocks=[{"type": "text", "text": normalized_content}], tool_calls=msg.tool_calls if hasattr(msg, 'tool_calls') else None)
     elif isinstance(msg, HumanMessage):
         return HumanMessage(content=normalized_content)
     elif isinstance(msg, SystemMessage):
