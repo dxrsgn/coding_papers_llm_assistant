@@ -118,7 +118,7 @@ async def read_file_content(filepath: str) -> str:
 
 @tool
 async def call_code_reader(filepath: str) -> str:
-    """Call the code reader node to read the file content."""
+    """Read the content of the file"""
     return "devlead_node must call code_reader_node"
 
 

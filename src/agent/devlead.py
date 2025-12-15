@@ -46,13 +46,7 @@ async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = Non
     
     user_content = devlead_user_prompt(research_context, code_context, user_query)
     
-    if not messages:
-        all_messages = [
-            SystemMessage(content=devlead_system_prompt),
-            HumanMessage(content=user_content),
-        ]
-    else:
-        all_messages = [SystemMessage(content=devlead_system_prompt)] + messages
+    all_messages = [SystemMessage(content=devlead_system_prompt), HumanMessage(content=user_content)] + messages
     
     response = await model_with_tools.ainvoke(all_messages)
     
