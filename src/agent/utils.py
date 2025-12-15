@@ -1,10 +1,8 @@
-import os
 import re
 import json
-from typing import TypeVar, Type, Any, Generic, Optional
+from typing import TypeVar, Type, Any, Generic
 from pydantic import BaseModel, ValidationError
 from langchain_openai import ChatOpenAI
-from langchain_litellm import ChatLiteLLM
 from langchain_core.runnables import Runnable
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, BaseMessage
@@ -12,10 +10,10 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Base
 T = TypeVar('T', bound=BaseModel)
 
 def create_llm(reasoning=False, **kwargs):
-    # TODO: find reasoning switch for vllm's qwen
-    # apparently passing "reasoning" kwarg into chatopena ai makes
-    # client format responses from llm into openai's responses api
-    # which is incompatible with itmo's vllm instance
+    # TODO: find reasoning switch for models except kwargs
+    # apparently passing "reasoning" kwarg into chatopenai client makes
+    # it format responses from llm's server into openai's responses api format
+    # which is incompatible with itmo's vllm instance and i guess many other vllm instances
     #if reasoning:
     #    conf = {"reasoning": {"enabled": True, "effort": "high"}}
     #else:
