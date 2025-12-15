@@ -22,7 +22,7 @@ Both specialist agents keep feeding structured context back to the supervisor, s
 
 | #   | Node                          | File                       | Responsibility                                                                                               | Notes / Tools / State                      |
 | --- | ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| 1   | prepare_user_input | —                          | Normalizes user query and injects a `HumanMessage` into state.                                                           | —                                          |
+| 1   | prepare_user_input | `src/agent/supervisor.py`                          | Normalizes user query and injects a `HumanMessage` into state.                                                           | —                                          |
 | 2   | Supervisor                         | `src/agent/supervisor.py`  | Follows the supervisor + specialists MAS pattern; delegates tasks via routing node.                          | Subagents (wrapped as tools)                                         |
 | 2.1 | Supervisor routing                 | `src/agent/supervisor.py`  | LangGraph tool node wrapping specialist subgraphs as tools; follows LangGraph official supervisor pattern guidance. | —                                          |
 | 3   | Researcher subgraph                | `src/agent/researcher.py`  | Answers research questions; can call a tool node.                                                            | Tool: `search_arxiv`                       |
