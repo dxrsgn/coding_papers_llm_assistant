@@ -139,7 +139,6 @@ def should_continue_devlead(state: CoderState) -> str:
     if not messages:
         return "devlead"
     last_message = messages[-1]
-    print(f"CODER: {last_message}")
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         for tool_call in last_message.tool_calls:
             if tool_call.get("name") == "call_code_reader":
