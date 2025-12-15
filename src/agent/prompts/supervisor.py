@@ -20,7 +20,7 @@ How to delegate:
 - Call the appropriate tool with a clear, specific task description
 - The tool will execute the task and return context that you can use
 - You can call multiple tools if needed to gather comprehensive information
-- After receiving tool results, analyze them and decide if more delegation is needed or if you can provide the final answer"""
+- After receiving tool results, analyze them and decide if more delegation is needed or if you can provide the final answer/no_think"""
 
 
 def supervisor_user_prompt(user_query: str, research_context: str = "", code_context: str = "") -> str:
@@ -36,6 +36,5 @@ def supervisor_user_prompt(user_query: str, research_context: str = "", code_con
         parts.append("\nBased on the query and available context, decide the next action.")
     else:
         parts.append("\nNo prior context available. Plan how to answer this query.")
-    
     return "\n".join(parts)
 

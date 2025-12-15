@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
@@ -32,7 +32,8 @@ async def supervisor_node(state: AgentState, subagents: List[BaseTool], config: 
     state_messages = state.get("messages") or []
     
     # it seems like various providers (e.g. at openrouter and at itmo's cluster may have different response formats)
-    normalized_messages = [normalize_message_content(msg) for msg in state_messages]
+    #normalized_messages = [normalize_message_content(msg) for msg in state_messages]
+    normalized_messages = state.get("messages", [])
     
     response = await llm.ainvoke(
         [SystemMessage(content=supervisor_system_prompt)] + normalized_messages
@@ -42,6 +43,20 @@ async def supervisor_node(state: AgentState, subagents: List[BaseTool], config: 
         "messages": [response],
         "num_iterations": state.get("num_iterations", 0) + 1
     }
+
+async def postprocess_tools(state: AgentState) -> dict:
+    last_message = state.get("messages", [])[-1]
+    if not isinstance(last_message, ToolMessage):
+        return {}
+    
+    if last_message.name == "call_coder":
+        return {"code_context": last_message.content}
+
+    if last_message.name == "call_researcher":
+        return {"research_context": last_message.content}
+
+    return {}
+    
 
 
 def build_supervisor(subagents: List[BaseTool]):

@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage
 
 from .devlead import build_coding_agent_subgraph
 from .researcher import build_researcher_subgraph
-from .supervisor import build_supervisor, prepare_user_input
+from .supervisor import build_supervisor, prepare_user_input, postprocess_tools
 from .subagent_wrappers import build_subagent_wrappers
 from .state import AgentState
 
@@ -38,9 +38,11 @@ def build_graph(checkpointer=None):
     graph.add_node("prepare_user_input", prepare_user_input)
     graph.add_node("Supervisor", supervisor)
     graph.add_node("supervisor_routing", ToolNode(supervisor_tools))
+    graph.add_node("supervisor_tool_postproc", postprocess_tools)
     graph.set_entry_point("prepare_user_input")
     graph.add_conditional_edges("Supervisor", route_from_supervisor)
-    graph.add_edge("supervisor_routing", "Supervisor")
+    graph.add_edge("supervisor_routing", "supervisor_tool_postproc")
+    graph.add_edge("supervisor_tool_postproc", "Supervisor")
     graph.add_edge("prepare_user_input", "Supervisor")
     
     return graph.compile(checkpointer=checkpointer)
