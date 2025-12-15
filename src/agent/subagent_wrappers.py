@@ -8,6 +8,7 @@ from .state import ResearcherState, CoderState
 def build_subagent_wrappers(researcher_subgraph, coding_subgraph):
     use_db = bool(os.getenv("DATABASE_URL"))
     
+    # wrapping agents as tools for supervisor https://docs.langchain.com/oss/python/langchain/supervisor#3-wrap-sub-agents-as-tools
     @tool
     async def call_researcher(task: str, config: RunnableConfig) -> str:
         """Delegate a research task to the RESEARCH agent."""
