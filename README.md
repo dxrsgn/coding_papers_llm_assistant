@@ -20,20 +20,43 @@ Both specialist agents keep feeding structured context back to the supervisor, s
 ![Architecture diagram](docs/arch.drawio.png)
 
 
-1. **Entry point** (`prepare_user_input`) normalizes the query and injects a `HumanMessage`.
-2. **Supervisor** (`src/agent/supervisor.py`) follows the supervisor + specialists MAS pattern. Responsible for delegating tasks via routing node  
-2.1. **Supervisor routing** (`src/agent/supervisor.py`) langgraph's tool node which wraps specialist subgraphs as tools, following langgraph official doc for handling this kind of MAS pattern.
-3. **Researcher subgraph** (`src/agent/researcher.py`) responsible for answering research. Can call tool node with `search_arxiv` tool  
-3.1 **Researcher sumarizer** (`src/agent/researcher.py`) summarizes research history and updates shared between specialists state with `research_context` 
-4. **Coder subgraph** (`src/agent/devlead.py`) cycles between planning, LangChain tool calls (git/log/list), a code-reader node, and a summarizer storing `code_context`  
-4.1. **Coder summarizer** (`src/agent/devlead.py`) summarizes coder's message history and updates shared between specialists state with `code_context`   
-4.2. **Coder summarizer** (`src/agent/code_reader.py`) dedicated subagents (wrapped as tool) for reading and summarizing contents of files
+| #   | Node                          | File                       | Responsibility                                                                                               | Notes / Tools / State                      |
+| --- | ---------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| 1   | prepare_user_input | —                          | Normalizes user query and injects a `HumanMessage` into state.                                                           | —                                          |
+| 2   | Supervisor                         | `src/agent/supervisor.py`  | Follows the supervisor + specialists MAS pattern; delegates tasks via routing node.                          | Subagents (wrapped as tools)                                         |
+| 2.1 | Supervisor routing                 | `src/agent/supervisor.py`  | LangGraph tool node wrapping specialist subgraphs as tools; follows LangGraph official supervisor pattern guidance. | —                                          |
+| 3   | Researcher subgraph                | `src/agent/researcher.py`  | Answers research questions; can call a tool node.                                                            | Tool: `search_arxiv`                       |
+| 3.1 | Researcher summarizer              | `src/agent/researcher.py`  | Summarizes research history; updates shared state between specialists.                                       | Updates shared memory field in state `research_context`                  |
+| 4   | Coder subgraph                     | `src/agent/devlead.py`     | Answers code related questions; can call a tool node and file reader subagent.              | Tools: `call_code_reader`, `list_directory`, `get_git_history`, `get_file_history` |
+| 4.1 | Coder summarizer                   | `src/agent/devlead.py`     | Summarizes coder message history; updates shared state between specialists.                                  | Updates shared memory field in state `code_context`                      |
+| 4.2 | Code  reader                  | `src/agent/code_reader.py` | Dedicated subagent (wrapped as a tool) for reading and summarizing file contents.                           | Tools: `read_file_content`, `recall_file_summary`, `memorize_file_summary`. Saves summaries into long term memory (to DB or local folder)                            |
+
+
+## Tools
+| Tool                    | What it does                                                    | Inputs                                     | Output                                                                  | Notes                                                                                          |
+| ----------------------- | --------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `search_arxiv`          | Searches arXiv for papers matching a text query.                | `query`                            | List of papers (titles + short descriptions/abstract snippets).         | Used by the Researcher tool node.                                                              |
+| `call_code_reader`      | Invokes the code-reader agent to summarize a file.              | `file_path`                                | Summary of the file’s contents.                                         | Acts as a wrapper around the code-reader subagent/tool.                                        |
+| `list_diretory`         | Produces a directory tree view for a given path.                | `path`                                     | Directory tree as a string.                                             | Respects `.gitignore` and `.dockerignore`.                                                     |
+| `get_git_history`       | Retrieves recent commit history from the current repository.    | `limit`                               | Last `limit` commits.                                                   | Repo is currently fixed/bound to this repo; dynamic repos are WIP. Essentially runs `git log`. |
+| `get_file_history`      | Fetches recent change history for a specific file.              | `file_path`, `limit`                  | Last `limit` diffs/patches for that file.                               |  Basically runs smth like `git log -n5 -p -- main.py`                                                        |
+| `read_file_content`     | Reads a file’s raw contents.                                    | `file_path`                                | File contents as a string.                                              |                                                 |
+| `recall_file_summary`   | Retrieves a previously stored summary for a given file content. | `file_content`, `use_db`             | Stored summary (if available).                                          | When `use_db=true`, fetches from DB; otherwise reads from local storage.                       |
+| `memorize_file_summary` | Stores a summary for a given file content in long-term memory.  | `file_content`, `summary`, `use_db` (bool) | Write confirmation / stored entry reference (implementation-dependent). | Uses a hash of file content as the key; `use_db` switches storage to DB vs local folder.       |
+
+
 
 
 ## Memory
 Assistant store session information (context) via langgraph's checkpointers. If `DATABASE_URL` is presented in envs, memory is stored in DB, otherwise in RAM  
 Graph's state along with message history has two fields for shared memory betwen researcher and coder agents - `research_context` and `coder_context`  
 Summaries of files are also stored in long term memory (by hash of content). If `DATABASE_URL` is presented in envs, summaries are stored in DB, otherwise in local folder defined by `LONG_TERM_MEMORY_DIR`
+
+## Error handling
+1.  LLM calls are using native ChatOpenAI's retries  
+2.  Structured output calls to LLM are wrapped into custom runnable with fallback to raw json parsing  
+3.  Arxiv search is also using retries  
+4.  Code related tools wrapped in try excepts with fallback to some placeholder/errmsg output  
 
 ## Repository Layout
 
@@ -52,6 +75,8 @@ Summaries of files are also stored in long term memory (by hash of content). If 
 ├── pyproject.toml         # Dependencies (LangChain, LangGraph, etc.)
 └── insomnia_collection.json # Ready-made HTTP requests for /chat
 ```
+
+
 
 ## Getting Started
 
@@ -74,7 +99,7 @@ Create a `.env` file (used by both CLI and FastAPI) with at least:
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Yes | Key for your model api. |
 | `OPENAI_API_BASE` | Yes | Base URL of the model endpoint, e.g., `http://localhost:8000/v1`. |
-| `MODEL` | Yes | Qwen model name registered with vLLM (e.g., `qwen2.5-coder-7b-instruct`). |
+| `MODEL` | Yes | Qwen model name registered with vLLM (e.g., `qwen3-32b`). |
 | `DATABASE_URL` | No | `postgresql+psycopg://user:pass@host:port/db`. Enables LangGraph checkpointing + summary DB. |
 | `LONG_TERM_MEMORY_DIR` | No | Fallback path for cached summaries if no DB is available (`.cache/agent_memory`). |
 
@@ -158,4 +183,4 @@ Response was useful, firstly supervisor called coder agent to get git history fo
 ## Reflection
 What worked well: agent specialization, single responsibility of agents, tools  
 Where the system behaved unexpectedly or failed: excessive or on contrary abscence of `search_arxiv` tool calls  
-How you would extend or refine the system if you had more time: first of all deeply enhance prompts, add more tools for coder and researcher, make memory dedicated for specific user (now most of it is stored in checkpointer where memory is identified by thread_id), refactor, frontend, vector search over files in repo, make git tools dynamic (now for sake of simplicity those are just bounded to current dir)
+How you would extend or refine the system if you had more time: first of all deeply enhance prompts, add more tools for coder and researcher, make memory dedicated for specific user (now most of it is stored in checkpointer where memory is identified by thread_id), refactor, frontend, vector search over files in repo, make git tools dynamic (now for sake of simplicity those are just bounded to current dir), human in the loop tool accept/reject
