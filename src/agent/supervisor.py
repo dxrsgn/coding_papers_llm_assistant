@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Optional, List
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
@@ -21,7 +21,7 @@ async def prepare_user_input(state: AgentState, config: Optional[RunnableConfig]
     
 
 
-async def supervisor_node(state: AgentState, subagents: List[BaseTool], config: Optional[RunnableConfig] = None) -> Dict:
+async def supervisor_node(state: AgentState, subagents: List[BaseTool], config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base", None)
     api_key = configurable.get("llm_api_key", None)
@@ -60,6 +60,6 @@ async def postprocess_tools(state: AgentState) -> dict:
 
 
 def build_supervisor(subagents: List[BaseTool]):
-    async def supervisor(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict:
+    async def supervisor(state: AgentState, config: Optional[RunnableConfig] = None) -> dict:
         return await supervisor_node(state, subagents, config)
     return supervisor

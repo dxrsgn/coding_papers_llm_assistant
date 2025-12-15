@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Optional
+from typing import Optional
 
 from langchain_core.messages import (
     AIMessage,
@@ -28,7 +28,7 @@ from src.tools import (
 from .state import CoderState
 
 
-async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
+async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -50,14 +50,14 @@ async def devlead_node(state: CoderState, config: Optional[RunnableConfig] = Non
     
     response = await model_with_tools.ainvoke(all_messages)
     
-    result: Dict = {
+    result = {
         "messages": [response],
     }
     
     return result
 
 
-async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
+async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -108,7 +108,7 @@ async def code_reader_node(state: CoderState, config: Optional[RunnableConfig] =
     }
 
 
-async def summarize_code_node(state: CoderState, config: Optional[RunnableConfig] = None) -> Dict:
+async def summarize_code_node(state: CoderState, config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")

@@ -1,10 +1,12 @@
 from typing import Annotated, List, Optional, TypedDict
+from operator import add
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph import add_messages
 
 
 class AgentState(TypedDict):
+    # previous queries are also stored there as human messages
     messages: Annotated[List[BaseMessage], add_messages]
     user_query: str
     research_context: Optional[str]

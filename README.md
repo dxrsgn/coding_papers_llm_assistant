@@ -29,7 +29,7 @@ Both specialist agents keep feeding structured context back to the supervisor, s
 | 3.1 | Researcher summarizer              | `src/agent/researcher.py`  | Summarizes research history; updates shared state between specialists.                                       | Updates shared memory field in state `research_context`                  |
 | 4   | Coder subgraph                     | `src/agent/devlead.py`     | Answers code related questions; can call a tool node and file reader subagent.              | Tools: `call_code_reader`, `list_directory`, `get_git_history`, `get_file_history` |
 | 4.1 | Coder summarizer                   | `src/agent/devlead.py`     | Summarizes coder message history; updates shared state between specialists.                                  | Updates shared memory field in state `code_context`                      |
-| 4.2 | Code  reader                  | `src/agent/code_reader.py` | Dedicated subagent (wrapped as a tool) for reading and summarizing file contents.                           | Tools: `read_file_content`, `recall_file_summary`, `memorize_file_summary`. Saves summaries into long term memory (to DB or local folder)                            |
+| 4.2 | Code  reader                  | `src/agent/devlead.py` | Dedicated subagent (wrapped as a tool) for reading and summarizing file contents.                           | Tools: `read_file_content`, `recall_file_summary`, `memorize_file_summary`. Saves summaries into long term memory (to DB or local folder)                            |
 
 
 ## Tools
@@ -49,6 +49,7 @@ Both specialist agents keep feeding structured context back to the supervisor, s
 
 ## Memory
 Assistant store session information (context) via langgraph's checkpointers. If `DATABASE_URL` is presented in envs, memory is stored in DB, otherwise in RAM  
+Previ
 Graph's state along with message history has two fields for shared memory betwen researcher and coder agents - `research_context` and `coder_context`  
 Summaries of files are also stored in long term memory (by hash of content). If `DATABASE_URL` is presented in envs, summaries are stored in DB, otherwise in local folder defined by `LONG_TERM_MEMORY_DIR`
 

@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, get_buffer_string
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
@@ -20,7 +20,7 @@ def should_continue_research(state: ResearcherState) -> str:
     return "summarize"
 
 
-async def researcher_agent_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> Dict:
+async def researcher_agent_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
@@ -42,14 +42,14 @@ async def researcher_agent_node(state: ResearcherState, config: Optional[Runnabl
     
     response = await model_with_tools.ainvoke(all_messages)
     
-    result: Dict = {
+    result = {
         "messages": [response],
     }
     
     return result
 
 
-async def summarize_research_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> Dict:
+async def summarize_research_node(state: ResearcherState, config: Optional[RunnableConfig] = None) -> dict:
     configurable = (config or {}).get("configurable", {})
     api_base = configurable.get("llm_api_base")
     api_key = configurable.get("llm_api_key")
