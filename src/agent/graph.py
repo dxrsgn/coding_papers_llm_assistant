@@ -15,9 +15,6 @@ def route_from_supervisor(state: AgentState) -> str:
     if num_iterations >= 5:
         return END
     last_message = state.get("messages", [])[-1]
-    print(last_message)
-    print(last_message.additional_kwargs.keys())
-    print(last_message.__dict__)
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "supervisor_routing"
     return END

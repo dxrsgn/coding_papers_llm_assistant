@@ -58,6 +58,7 @@ Summaries of files are also stored in long term memory (by hash of content). If 
 3.  Arxiv search is also using retries  
 4.  Code related tools wrapped in try excepts with fallback to some placeholder/errmsg output  
 
+Also, its not implemented there now, but for safer excecution its better to add message history trimming in order to avoid errors of exceeding max_token limit in LLM calls
 ## Repository Layout
 
 ```
@@ -183,4 +184,4 @@ Response was useful, firstly supervisor called coder agent to get git history fo
 ## Reflection
 What worked well: agent specialization, single responsibility of agents, tools  
 Where the system behaved unexpectedly or failed: excessive or on contrary abscence of `search_arxiv` tool calls  
-How you would extend or refine the system if you had more time: first of all deeply enhance prompts, add more tools for coder and researcher, make memory dedicated for specific user (now most of it is stored in checkpointer where memory is identified by thread_id), refactor, frontend, vector search over files in repo, make git tools dynamic (now for sake of simplicity those are just bounded to current dir), human in the loop tool accept/reject
+How you would extend or refine the system if you had more time: first of all deeply enhance prompts, add more tools for coder and researcher, make memory dedicated for specific user (now most of it is stored in checkpointer where memory is identified by thread_id), refactor, frontend, vector search over files in repo, make git tools dynamic (now for sake of simplicity those are just bounded to current dir), human in the loop tool accept/reject, add message history pruning (to avoid exceeding max tokens limit)
